@@ -1,0 +1,730 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>科学总复习大挑战：保龄球版</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&display=swap');
+        
+        body {
+            font-family: 'ZCOOL KuaiLe', cursive, sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
+            touch-action: manipulation;
+            user-select: none;
+            overflow: hidden;
+            color: #fff;
+        }
+
+        .bg-quiz { background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%); }
+        .bg-bowling { background: linear-gradient(180deg, #311b92 0%, #0d47a1 100%); }
+
+        .bounce-in { animation: bounceIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        @keyframes bounceIn {
+            0% { transform: scale(0.3); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        .shake { animation: shake 0.4s ease-in-out; }
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-10px); }
+            75% { transform: translateX(10px); }
+        }
+
+        .strike-banner {
+            animation: strikeAnim 1s ease-out forwards;
+        }
+        @keyframes strikeAnim {
+            0% { transform: scale(0.2) rotate(-10deg); opacity: 0; }
+            50% { transform: scale(1.3) rotate(5deg); opacity: 1; }
+            100% { transform: scale(1) rotate(0deg); opacity: 1; }
+        }
+
+        /* Power Meter Bar */
+        .power-bar-fill {
+            transition: width 0.05s linear;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col relative w-full h-full bg-quiz" id="main-body">
+
+    <!-- Top HUD (Always visible during gameplay) -->
+    <div id="hud" class="hidden w-full max-w-lg mx-auto flex justify-between items-center p-4 z-20">
+        <div class="bg-white/10 backdrop-blur-md px-5 py-2 rounded-full border-2 border-yellow-400 shadow-lg flex items-center gap-2">
+            <span class="text-2xl">🏆</span>
+            <span class="text-xl font-bold text-gray-100">总分: <span id="total-score" class="text-3xl text-yellow-400 font-extrabold">0</span></span>
+        </div>
+        <div id="progress-container" class="bg-white/10 backdrop-blur-md px-5 py-2 rounded-full border-2 border-indigo-400 shadow-lg flex items-center gap-2">
+            <span class="text-2xl">🎳</span>
+            <span class="text-xl font-bold text-gray-100">第 <span id="question-number" class="text-2xl text-indigo-300">1</span> / 9 关</span>
+        </div>
+    </div>
+
+    <!-- Start Screen -->
+    <div id="start-screen" class="absolute inset-0 z-50 flex flex-col items-center justify-center bg-slate-900/90 backdrop-blur-md p-6 text-center">
+        <div class="text-8xl mb-4 animate-bounce">🎳</div>
+        <h1 class="text-5xl md:text-6xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 via-orange-300 to-pink-500 mb-4 drop-shadow-lg">
+            科学总复习大挑战
+        </h1>
+        <p class="text-2xl text-indigo-200 mb-8 max-w-md font-bold leading-relaxed">
+            答对科学题目，就能解锁 <span class="text-yellow-300">保龄球大挑战</span>！<br>把球瓶全部击倒，赢得最高分吧！
+        </p>
+        <button onclick="startGame()" class="bg-gradient-to-r from-amber-500 via-orange-500 to-red-500 hover:from-amber-600 hover:to-red-600 text-white text-3xl font-bold py-4 px-12 rounded-full shadow-2xl transform transition hover:scale-105 active:scale-95 border-b-4 border-red-700">
+            开始挑战 🚀
+        </button>
+    </div>
+
+    <!-- Quiz Screen -->
+    <div id="quiz-screen" class="hidden flex-1 flex flex-col items-center justify-center p-4 w-full max-w-lg mx-auto relative z-10">
+        <div class="bg-slate-800/90 rounded-3xl shadow-2xl p-6 w-full text-center border-4 border-indigo-500/50 backdrop-blur-md bounce-in">
+            <div id="unit-badge" class="inline-block bg-indigo-500/30 text-indigo-300 px-4 py-1.5 rounded-full text-lg font-bold mb-4 border border-indigo-400/40">
+                单元 1: 科学技能
+            </div>
+            <h2 id="question-text" class="text-2xl md:text-3xl text-white mb-8 font-bold leading-relaxed min-h-[80px] flex items-center justify-center">
+                题目加载中...
+            </h2>
+            <div id="options-container" class="grid grid-cols-1 gap-4">
+                <!-- Options injected via JS -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Bowling Game Screen (Reward Phase) -->
+    <div id="bowling-screen" class="hidden flex-1 flex flex-col items-center justify-between p-2 w-full max-w-lg mx-auto relative z-10">
+        <!-- Title Banner -->
+        <div class="text-center mt-1 mb-2">
+            <h2 class="text-3xl font-bold text-yellow-300 drop-shadow-md flex items-center justify-center gap-2">
+                <span>🎳</span> 保龄球时间！瞄准全倒！
+            </h2>
+            <p class="text-sm text-indigo-200">移动球的位置，等指针和力量合适时点击“投球！”</p>
+        </div>
+
+        <!-- Bowling Canvas Container -->
+        <div class="relative w-full flex-1 flex items-center justify-center min-h-[360px]">
+            <canvas id="bowlingCanvas" class="bg-amber-950/40 rounded-2xl border-4 border-amber-600/50 shadow-2xl touch-none"></canvas>
+            
+            <!-- Strike / Hit Popup Banner -->
+            <div id="strike-overlay" class="hidden absolute inset-0 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm z-30 rounded-2xl">
+                <div id="strike-text" class="text-6xl font-black text-yellow-300 drop-shadow-[0_5px_5px_rgba(0,0,0,0.8)] strike-banner">
+                    STRIKE! 💥
+                </div>
+                <div id="strike-score-added" class="text-3xl font-bold text-emerald-400 mt-2">
+                    +100 分！
+                </div>
+            </div>
+        </div>
+
+        <!-- Controls Panel -->
+        <div class="w-full bg-slate-800/80 p-4 rounded-2xl border-2 border-indigo-400/40 shadow-xl mt-2 flex flex-col gap-3">
+            <!-- Position Slider -->
+            <div class="flex items-center gap-3">
+                <span class="text-sm font-bold text-indigo-200 whitespace-nowrap">站位:</span>
+                <input type="range" id="ball-pos-slider" min="-80" max="80" value="0" class="w-full accent-amber-400 cursor-pointer h-2 bg-slate-600 rounded-lg">
+            </div>
+
+            <!-- Power Bar -->
+            <div class="flex items-center gap-3">
+                <span class="text-sm font-bold text-indigo-200 whitespace-nowrap">力量:</span>
+                <div class="w-full bg-slate-700 h-4 rounded-full overflow-hidden border border-slate-500 relative">
+                    <div id="power-bar" class="h-full bg-gradient-to-r from-green-400 via-yellow-400 to-red-500 power-bar-fill w-0"></div>
+                </div>
+            </div>
+
+            <!-- Throw Button -->
+            <button id="throw-btn" onclick="throwBall()" class="w-full bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white text-2xl font-bold py-3 rounded-xl shadow-lg transform transition active:scale-95 border-b-4 border-teal-800 flex items-center justify-center gap-2">
+                🚀 全力投球！
+            </button>
+        </div>
+    </div>
+
+    <!-- End Screen -->
+    <div id="end-screen" class="hidden absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/80 backdrop-blur-md p-4">
+        <div class="bg-slate-800 p-8 rounded-[2.5rem] shadow-2xl text-center w-full max-w-sm border-4 border-yellow-400/60 bounce-in">
+            <div class="text-7xl mb-4">🏆</div>
+            <h2 class="text-4xl font-bold text-yellow-400 mb-2">复习完成！</h2>
+            <p class="text-xl text-indigo-200 mb-4">太棒了，你总共获得了</p>
+            <div class="text-6xl text-amber-400 font-extrabold mb-4 drop-shadow-md"><span id="final-score">0</span> <span class="text-2xl text-yellow-300">分</span></div>
+            <p class="text-base text-indigo-300 mb-6">你不仅掌握了科学知识，还是保龄球大师！</p>
+            <button onclick="resetGame()" class="w-full bg-gradient-to-r from-amber-500 to-orange-600 text-white text-2xl font-bold py-4 rounded-full shadow-xl transform transition active:scale-95 border-b-4 border-orange-800">
+                再玩一次 🚀
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // Audio Synthesizer for retro sounds without external assets
+        const AudioSys = {
+            ctx: null,
+            init() {
+                if (!this.ctx) {
+                    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+            },
+            playCorrect() {
+                this.init();
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(523.25, now); // C5
+                osc.frequency.exponentialRampToValueAtTime(880, now + 0.3); // A5
+                gain.gain.setValueAtTime(0.3, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(now + 0.3);
+            },
+            playWrong() {
+                this.init();
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(220, now);
+                osc.frequency.setValueAtTime(160, now + 0.15);
+                gain.gain.setValueAtTime(0.3, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(now + 0.3);
+            },
+            playHit() {
+                this.init();
+                const now = this.ctx.currentTime;
+                // Noise buffer for wood crash sound
+                const bufferSize = this.ctx.sampleRate * 0.2;
+                const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+                const data = buffer.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) {
+                    data[i] = Math.random() * 2 - 1;
+                }
+                const noise = this.ctx.createBufferSource();
+                noise.buffer = buffer;
+
+                const filter = this.ctx.createBiquadFilter();
+                filter.type = 'bandpass';
+                filter.frequency.value = 800;
+
+                const gain = this.ctx.createGain();
+                gain.gain.setValueAtTime(0.5, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+
+                noise.connect(filter);
+                filter.connect(gain);
+                gain.connect(this.ctx.destination);
+                noise.start();
+            },
+            playStrike() {
+                this.init();
+                const now = this.ctx.currentTime;
+                [523.25, 659.25, 783.99, 1046.50].forEach((freq, i) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(freq, now + i * 0.08);
+                    gain.gain.setValueAtTime(0.3, now + i * 0.08);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + i * 0.08 + 0.4);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start(now + i * 0.08);
+                    osc.stop(now + i * 0.08 + 0.4);
+                });
+            }
+        };
+
+        // Database of Questions (Covering Primary 1 Science Units 1-9)
+        const quizData = [
+            { unit: "单元1: 科学技能", q: "要测量一本书有多长，我们应该选择哪种工具？", options: [{t: "直尺", e: "📏", isCorrect: true}, {t: "放大镜", e: "🔍", isCorrect: false}] },
+            { unit: "单元2: 科学室规则", q: "在科学室里，我们可以吃食物或喝水吗？", options: [{t: "不可以", e: "❌", isCorrect: true}, {t: "可以", e: "🍔", isCorrect: false}] },
+            { unit: "单元3: 生物与非生物", q: "下面哪一个是会长大、会呼吸的“生物”？", options: [{t: "小狗", e: "🐶", isCorrect: true}, {t: "玩具车", e: "🚗", isCorrect: false}] },
+            { unit: "单元4: 人类", q: "我们用身体的哪种感觉器官来“闻”花香？", options: [{t: "鼻子", e: "👃", isCorrect: true}, {t: "耳朵", e: "👂", isCorrect: false}] },
+            { unit: "单元5: 动物", q: "牛只吃草和植物，它属于哪类食物习性的动物？", options: [{t: "草食动物", e: "🌿", isCorrect: true}, {t: "肉食动物", e: "🥩", isCorrect: false}] },
+            { unit: "单元6: 植物", q: "植物的哪个部分在土壤里吸收水分和养分？", options: [{t: "根", e: "🪢", isCorrect: true}, {t: "叶子", e: "🍃", isCorrect: false}] },
+            { unit: "单元7: 磁铁", q: "下面哪种物品可以被磁铁吸引？", options: [{t: "铁钉", e: "🔩", isCorrect: true}, {t: "橡皮擦", e: "✏️", isCorrect: false}] },
+            { unit: "单元8: 吸水性", q: "桌子上不小心洒了水，用什么能快速把水吸干？", options: [{t: "海绵", e: "🧽", isCorrect: true}, {t: "塑料袋", e: "🛍️", isCorrect: false}] },
+            { unit: "单元9: 地球", q: "我们人类和动物时刻呼吸，需要地球上的什么？", options: [{t: "空气", e: "💨", isCorrect: true}, {t: "石头", e: "🪨", isCorrect: false}] }
+        ];
+
+        let currentQuestionIndex = 0;
+        let totalScore = 0;
+
+        // DOM Elements
+        const elBody = document.getElementById('main-body');
+        const elStartScreen = document.getElementById('start-screen');
+        const elQuizScreen = document.getElementById('quiz-screen');
+        const elBowlingScreen = document.getElementById('bowling-screen');
+        const elEndScreen = document.getElementById('end-screen');
+        const elHud = document.getElementById('hud');
+        
+        const elTotalScore = document.getElementById('total-score');
+        const elQNumber = document.getElementById('question-number');
+        const elQuestionText = document.getElementById('question-text');
+        const elOptionsContainer = document.getElementById('options-container');
+        const elUnitBadge = document.getElementById('unit-badge');
+        const elFinalScore = document.getElementById('final-score');
+
+        function startGame() {
+            AudioSys.init();
+            quizData.sort(() => Math.random() - 0.5); // Shuffle questions
+            currentQuestionIndex = 0;
+            totalScore = 0;
+            elTotalScore.innerText = totalScore;
+            
+            elStartScreen.classList.add('hidden');
+            elHud.classList.remove('hidden');
+            
+            showQuestion();
+        }
+
+        function showQuestion() {
+            elBody.className = "min-h-screen flex flex-col relative w-full h-full bg-quiz";
+            elBowlingScreen.classList.add('hidden');
+            elQuizScreen.classList.remove('hidden');
+            
+            if (currentQuestionIndex >= quizData.length) {
+                endGame();
+                return;
+            }
+
+            const qData = quizData[currentQuestionIndex];
+            elQNumber.innerText = currentQuestionIndex + 1;
+            elUnitBadge.innerText = qData.unit;
+            elQuestionText.innerText = qData.q;
+            
+            elOptionsContainer.innerHTML = '';
+            
+            // Shuffle options
+            const options = [...qData.options].sort(() => Math.random() - 0.5);
+            
+            options.forEach(opt => {
+                const btn = document.createElement('button');
+                btn.className = "option-btn flex items-center p-4 bg-slate-700/80 hover:bg-slate-600 border-2 border-indigo-400/40 rounded-2xl w-full text-left transition transform active:scale-95 shadow-md";
+                btn.onclick = () => handleAnswer(opt.isCorrect, btn);
+                btn.innerHTML = `
+                    <span class="text-5xl mr-4">${opt.e}</span>
+                    <span class="text-xl md:text-2xl font-bold text-gray-100">${opt.t}</span>
+                `;
+                elOptionsContainer.appendChild(btn);
+            });
+            
+            // Re-trigger bounce animation
+            elQuizScreen.firstElementChild.classList.remove('bounce-in');
+            void elQuizScreen.offsetWidth;
+            elQuizScreen.firstElementChild.classList.add('bounce-in');
+        }
+
+        function handleAnswer(isCorrect, btnElement) {
+            if (isCorrect) {
+                AudioSys.playCorrect();
+                btnElement.classList.remove('border-indigo-400/40', 'bg-slate-700/80');
+                btnElement.classList.add('border-emerald-400', 'bg-emerald-600/60');
+                
+                totalScore += 10; // 答对奖励10分
+                elTotalScore.innerText = totalScore;
+
+                setTimeout(() => {
+                    startBowlingGame();
+                }, 700);
+            } else {
+                AudioSys.playWrong();
+                btnElement.classList.remove('border-indigo-400/40');
+                btnElement.classList.add('border-rose-500', 'shake', 'bg-rose-900/50');
+                
+                setTimeout(() => {
+                    btnElement.classList.remove('shake', 'border-rose-500', 'bg-rose-900/50');
+                    btnElement.classList.add('border-indigo-400/40');
+                }, 500);
+            }
+        }
+
+        // Canvas & Bowling Physics Engine
+        let canvas, ctx;
+        let aimAngle = 0; // Direction in radians
+        let aimDirection = 1; // Swinging left to right
+        let powerVal = 0; // 0 to 100
+        let powerDirection = 1;
+        let animFrameId = null;
+        let gameState = 'AIMING'; // 'AIMING', 'ROLLING', 'RESULT'
+
+        // Bowling Entities
+        let ball = { x: 0, y: 0, vx: 0, vy: 0, radius: 18, color: '#3b82f6' };
+        let pins = [];
+        
+        const ballPosSlider = document.getElementById('ball-pos-slider');
+        const powerBar = document.getElementById('power-bar');
+        const throwBtn = document.getElementById('throw-btn');
+        const strikeOverlay = document.getElementById('strike-overlay');
+
+        function initCanvas() {
+            canvas = document.getElementById('bowlingCanvas');
+            ctx = canvas.getContext('2d');
+            
+            // Set canvas dynamic resolution
+            const container = canvas.parentElement;
+            canvas.width = Math.min(container.clientWidth - 16, 420);
+            canvas.height = Math.min(container.clientHeight - 16, 520);
+
+            resetBowlingStage();
+        }
+
+        function resetBowlingStage() {
+            gameState = 'AIMING';
+            aimAngle = 0;
+            powerVal = 0;
+            throwBtn.disabled = false;
+            throwBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+            strikeOverlay.classList.add('hidden');
+
+            const startY = 110;
+            const pinSpacingX = 26;
+            const pinSpacingY = 24;
+
+            // Generate 10 Pins in Triangle Formation (4 rows)
+            pins = [];
+            let pinId = 0;
+            const rows = [4, 3, 2, 1]; // From back row to front row
+            rows.forEach((countInRow, rowIndex) => {
+                const rowY = startY + (3 - rowIndex) * pinSpacingY;
+                const startX = (canvas.width / 2) - ((countInRow - 1) * pinSpacingX) / 2;
+                
+                for (let i = 0; i < countInRow; i++) {
+                    pins.push({
+                        id: pinId++,
+                        x: startX + i * pinSpacingX,
+                        y: rowY,
+                        vx: 0,
+                        vy: 0,
+                        radius: 11,
+                        fallen: false,
+                        angle: 0,
+                        opacity: 1
+                    });
+                }
+            });
+
+            // Ball Position
+            updateBallInitialPos();
+        }
+
+        function updateBallInitialPos() {
+            if (gameState === 'AIMING') {
+                const offsetX = parseFloat(ballPosSlider.value);
+                ball.x = (canvas.width / 2) + offsetX;
+                ball.y = canvas.height - 60;
+                ball.vx = 0;
+                ball.vy = 0;
+            }
+        }
+
+        ballPosSlider.addEventListener('input', updateBallInitialPos);
+
+        function startBowlingGame() {
+            elQuizScreen.classList.add('hidden');
+            elBowlingScreen.classList.remove('hidden');
+            elBody.className = "min-h-screen flex flex-col relative w-full h-full bg-bowling";
+
+            initCanvas();
+            
+            if (animFrameId) cancelAnimationFrame(animFrameId);
+            gameLoop();
+        }
+
+        function throwBall() {
+            if (gameState !== 'AIMING') return;
+
+            gameState = 'ROLLING';
+            throwBtn.disabled = true;
+            throwBtn.classList.add('opacity-50', 'cursor-not-allowed');
+
+            // Calculate velocity based on angle and power
+            const speed = 7 + (powerVal / 100) * 8; // Speed scale 7 ~ 15
+            ball.vx = Math.sin(aimAngle) * speed;
+            ball.vy = -Math.cos(aimAngle) * speed;
+        }
+
+        function gameLoop() {
+            // Clear Background
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Draw Bowling Lane
+            drawLane();
+
+            if (gameState === 'AIMING') {
+                // Aim Arrow Oscillate
+                aimAngle += 0.03 * aimDirection;
+                if (aimAngle > 0.6) aimDirection = -1;
+                if (aimAngle < -0.6) aimDirection = 1;
+
+                // Power Bar Oscillate
+                powerVal += 2 * powerDirection;
+                if (powerVal >= 100) powerDirection = -1;
+                if (powerVal <= 0) powerDirection = 1;
+                powerBar.style.width = `${powerVal}%`;
+
+                // Draw Aiming Guide Line
+                drawAimGuide();
+            } else if (gameState === 'ROLLING') {
+                // Physics Update: Ball Movement
+                ball.x += ball.vx;
+                ball.y += ball.vy;
+
+                // Gutter Bounds
+                const laneLeft = 50;
+                const laneRight = canvas.width - 50;
+                if (ball.x < laneLeft + ball.radius || ball.x > laneRight - ball.radius) {
+                    ball.vx *= 0.5; // Friction in gutters
+                }
+
+                // Check Ball-Pin Collisions
+                pins.forEach(pin => {
+                    if (!pin.fallen) {
+                        const dx = pin.x - ball.x;
+                        const dy = pin.y - ball.y;
+                        const dist = Math.hypot(dx, dy);
+
+                        if (dist < ball.radius + pin.radius) {
+                            pin.fallen = true;
+                            AudioSys.playHit();
+                            
+                            // Scatter velocity
+                            const angle = Math.atan2(dy, dx);
+                            const impactForce = Math.hypot(ball.vx, ball.vy);
+                            pin.vx = Math.cos(angle) * impactForce * 0.8 + (Math.random() - 0.5) * 2;
+                            pin.vy = Math.sin(angle) * impactForce * 0.8 + (Math.random() - 0.5) * 2;
+                        }
+                    }
+                });
+
+                // Check Pin-Pin Collisions (Chain reactions)
+                for (let i = 0; i < pins.length; i++) {
+                    for (let j = i + 1; j < pins.length; j++) {
+                        let p1 = pins[i];
+                        let p2 = pins[j];
+
+                        if (p1.fallen || p2.fallen) {
+                            const dx = p2.x - p1.x;
+                            const dy = p2.y - p1.y;
+                            const dist = Math.hypot(dx, dy);
+
+                            if (dist < p1.radius + p2.radius) {
+                                if (!p1.fallen) p1.fallen = true;
+                                if (!p2.fallen) p2.fallen = true;
+
+                                const angle = Math.atan2(dy, dx);
+                                p1.vx -= Math.cos(angle) * 2;
+                                p1.vy -= Math.sin(angle) * 2;
+                                p2.vx += Math.cos(angle) * 2;
+                                p2.vy += Math.sin(angle) * 2;
+                            }
+                        }
+                    }
+                }
+
+                // Update Pin Movements
+                pins.forEach(pin => {
+                    if (pin.fallen) {
+                        pin.x += pin.vx;
+                        pin.y += pin.vy;
+                        pin.vx *= 0.85; // Friction
+                        pin.vy *= 0.85;
+                        pin.angle += 0.2;
+                    }
+                });
+
+                // End Roll Condition (Ball past top or stopped)
+                if (ball.y < -30 || (Math.abs(ball.vx) < 0.1 && Math.abs(ball.vy) < 0.1)) {
+                    gameState = 'RESULT';
+                    setTimeout(calculateResult, 800);
+                }
+            }
+
+            // Draw Pins
+            pins.forEach(drawPin);
+
+            // Draw Ball
+            drawBall();
+
+            animFrameId = requestAnimationFrame(gameLoop);
+        }
+
+        function drawLane() {
+            const laneLeft = 45;
+            const laneRight = canvas.width - 45;
+
+            // Wood Texture Background
+            ctx.fillStyle = '#8d5524';
+            ctx.fillRect(laneLeft, 0, laneRight - laneLeft, canvas.height);
+
+            // Gutters
+            ctx.fillStyle = '#2a1a0a';
+            ctx.fillRect(0, 0, laneLeft, canvas.height);
+            ctx.fillRect(laneRight, 0, canvas.width - laneRight, canvas.height);
+
+            // Wood Grain Lines
+            ctx.strokeStyle = '#6d3d13';
+            ctx.lineWidth = 2;
+            for (let x = laneLeft + 20; x < laneRight; x += 30) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, canvas.height);
+                ctx.stroke();
+            }
+
+            // Foul Line
+            ctx.strokeStyle = '#ef4444';
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.moveTo(laneLeft, canvas.height - 90);
+            ctx.lineTo(laneRight, canvas.height - 90);
+            ctx.stroke();
+
+            // Lane Target Arrows
+            ctx.fillStyle = '#f59e0b';
+            for (let x = laneLeft + 40; x < laneRight; x += 50) {
+                ctx.beginPath();
+                ctx.moveTo(x, canvas.height - 220);
+                ctx.lineTo(x - 6, canvas.height - 200);
+                ctx.lineTo(x + 6, canvas.height - 200);
+                ctx.fill();
+            }
+        }
+
+        function drawAimGuide() {
+            ctx.save();
+            ctx.translate(ball.x, ball.y);
+            ctx.rotate(aimAngle);
+
+            // Dotted Aim Line
+            ctx.strokeStyle = '#f59e0b';
+            ctx.lineWidth = 3;
+            ctx.setLineDash([8, 6]);
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(0, -220);
+            ctx.stroke();
+
+            // Arrow Tip
+            ctx.fillStyle = '#ef4444';
+            ctx.setLineDash([]);
+            ctx.beginPath();
+            ctx.moveTo(0, -230);
+            ctx.lineTo(-8, -215);
+            ctx.lineTo(8, -215);
+            ctx.fill();
+
+            ctx.restore();
+        }
+
+        function drawBall() {
+            ctx.save();
+            // Ball Shadow
+            ctx.fillStyle = 'rgba(0,0,0,0.3)';
+            ctx.beginPath();
+            ctx.ellipse(ball.x, ball.y + 6, ball.radius, ball.radius * 0.5, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Shiny Ball Gradient
+            const grad = ctx.createRadialGradient(
+                ball.x - 5, ball.y - 5, 2,
+                ball.x, ball.y, ball.radius
+            );
+            grad.addColorStop(0, '#60a5fa');
+            grad.addColorStop(0.5, '#2563eb');
+            grad.addColorStop(1, '#1e3a8a');
+
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Finger Holes
+            ctx.fillStyle = '#0f172a';
+            ctx.beginPath();
+            ctx.arc(ball.x - 3, ball.y - 4, 2.5, 0, Math.PI * 2);
+            ctx.arc(ball.x + 4, ball.y - 4, 2.5, 0, Math.PI * 2);
+            ctx.arc(ball.x, ball.y + 3, 3, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.restore();
+        }
+
+        function drawPin(pin) {
+            ctx.save();
+            ctx.translate(pin.x, pin.y);
+
+            if (pin.fallen) {
+                ctx.rotate(pin.angle);
+                ctx.globalAlpha = Math.max(0, 1 - (Math.abs(pin.vx) + Math.abs(pin.vy)) * 0.05);
+            }
+
+            // Pin Shadow
+            ctx.fillStyle = 'rgba(0,0,0,0.2)';
+            ctx.beginPath();
+            ctx.ellipse(0, 10, 8, 4, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Pin Body (White)
+            ctx.fillStyle = '#f8fafc';
+            ctx.beginPath();
+            ctx.arc(0, -6, 6, 0, Math.PI * 2); // Head
+            ctx.quadraticCurveTo(10, 8, 0, 10); // Body right
+            ctx.quadraticCurveTo(-10, 8, 0, -6); // Body left
+            ctx.fill();
+
+            // Red Stripe on neck
+            ctx.fillStyle = '#dc2626';
+            ctx.fillRect(-5, -4, 10, 3);
+
+            ctx.restore();
+        }
+
+        function calculateResult() {
+            cancelAnimationFrame(animFrameId);
+
+            const fallenCount = pins.filter(p => p.fallen).length;
+            let earnedPoints = fallenCount * 10;
+            const isStrike = fallenCount === 10;
+
+            if (isStrike) {
+                earnedPoints += 50; // Bonus +50 for STRIKE!
+                AudioSys.playStrike();
+                document.getElementById('strike-text').innerText = 'STRIKE! 🎳';
+                document.getElementById('strike-score-added').innerText = `全倒！额外奖 100 分！`;
+            } else {
+                AudioSys.playHit();
+                document.getElementById('strike-text').innerText = `击倒 ${fallenCount} 个！`;
+                document.getElementById('strike-score-added').innerText = `获得 +${earnedPoints} 分！`;
+            }
+
+            totalScore += earnedPoints;
+            elTotalScore.innerText = totalScore;
+
+            strikeOverlay.classList.remove('hidden');
+
+            setTimeout(() => {
+                strikeOverlay.classList.add('hidden');
+                currentQuestionIndex++;
+                showQuestion();
+            }, 2000);
+        }
+
+        function endGame() {
+            elHud.classList.add('hidden');
+            elQuizScreen.classList.add('hidden');
+            elBowlingScreen.classList.add('hidden');
+            elFinalScore.innerText = totalScore;
+            elEndScreen.classList.remove('hidden');
+        }
+
+        function resetGame() {
+            elEndScreen.classList.add('hidden');
+            elStartScreen.classList.remove('hidden');
+            elBody.className = "min-h-screen flex flex-col relative w-full h-full bg-quiz";
+        }
+    </script>
+</body>
+</html>
